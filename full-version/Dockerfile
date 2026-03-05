@@ -68,9 +68,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY nginx/templates/ /etc/nginx/templates/
-
 COPY nginx/docker-entrypoint.sh /docker-entrypoint.sh
-
 COPY --chown=nginx:nginx --from=builder /app/build /usr/share/nginx/html
 
 RUN set -eux; \
