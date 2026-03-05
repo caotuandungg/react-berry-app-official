@@ -20,8 +20,7 @@ services:
         REACT_APP_AUTH0_CLIENT_ID: ${REACT_APP_AUTH0_CLIENT_ID}
         REACT_APP_AUTH0_DOMAIN: ${REACT_APP_AUTH0_DOMAIN}
     container_name: berry-react-app
-    # Runtime env vars — passed to docker-entrypoint.sh → envsubst → nginx config
-    # All NGINX_* vars have defaults in nginx/docker-entrypoint.sh (no need to set here unless overriding)
+    
     environment:
       NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-_}
       NGINX_RATE_LIMIT_APP: ${NGINX_RATE_LIMIT_APP:-10r/s}
@@ -37,10 +36,9 @@ services:
       - /tmp/nginx:size=10M,uid=101,gid=101
       - /var/cache/nginx:size=50M,uid=101,gid=101
       - /var/run:size=1M,uid=101,gid=101
-      - /etc/nginx/conf.d:size=1M,uid=101,gid=101   # entrypoint writes rendered app.conf here at startup
+      - /etc/nginx/conf.d:size=1M,uid=101,gid=101   
     security_opt:
       - no-new-privileges:true
-    # Resource limits for production
     deploy:
       resources:
         limits:
