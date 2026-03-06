@@ -1,6 +1,6 @@
 # Berry React Admin — Production Docker + Nginx
 
-Tài liệu này giải thích toàn bộ quyết định kỹ thuật khi đóng gói và triển khai ứng dụng React (TypeScript) dưới dạng container production-grade.
+Giải thích toàn bộ quyết định kỹ thuật khi đóng gói và triển khai ứng dụng React (TypeScript) dưới dạng container production-grade.
 
 ---
 ## Quick Start
@@ -49,6 +49,8 @@ Stage 3 — runtime  : COPY /app/build → nginx (không có Node, npm, source c
 - Sửa source code chỉ invalidate từ `COPY . .` trở xuống.
 
 **Kích thước image:** Runtime chỉ chứa nginx + static files → < 40MB.
+**Các câu lệnh test**
+  docker exec -it <> sh , check which node/npm/ ls -la
 
 ---
 
@@ -71,6 +73,9 @@ tmpfs:
 ```
 
 `/etc/nginx/conf.d` cần tmpfs riêng vì `read_only: true` block write — entrypoint cần ghi `app.conf` vào đây lúc startup. Không có tmpfs này → "Read-only file system" error.
+
+**Các câu lệnh test**
+  docker exec -it <> sh , check id
 
 ---
 
@@ -101,6 +106,10 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 BusyBox wget (Alpine) resolve `localhost` → `::1` (IPv6 loopback), nhưng nginx `listen 8080;` chỉ bind `0.0.0.0:8080` (IPv4) → "Connection refused". `127.0.0.1` bypass DNS resolution, connect thẳng IPv4.
 
+**Các câu lệnh test**
+  docker inspect react-prod | grep -i health -A 10 - Check Docker Healthcheck
+  curl -i http://localhost:3000/health - Test endpoint health
+  docker ps
 ---
 
 ## 4. Cache Strategy
@@ -145,8 +154,12 @@ location = /index.html {
 }
 ```
 
-**Tại sao không cache index.html:** Xem phần Debug Scenario bên dưới.
+**Các câu lệnh test**
+  curl -s http://localhost:3000 | grep static/js  
+  curl -I -H "Accept-Encoding: gzip" \
+  http://localhost:3000/static/js/<>
 
+  curl -I http://localhost:3000/favicon.svg - Test non-hashed file (ví dụ favicon)
 ---
 
 ## 5. Conditional Request (ETag / 304)
@@ -160,6 +173,12 @@ location = /index.html {
 
 Không disable ETag để "đơn giản hóa" — đó là bỏ đi một cơ chế tiết kiệm bandwidth quan trọng.
 
+**Các câu lệnh test**
+  curl -I http://localhost:8080/ - Lấy giá trị Etag và copy nó paste vào lệnh dưới
+  curl -I http://localhost:3000/ \    - Test If-None-Match
+  -H 'If-None-Match: "etag_value"'
+  curl -I http://localhost:8080/static/js/main.xxx.js \   - Test static asset 304
+  -H 'If-None-Match: "etag_value"'
 ---
 
 ## 6. Gzip Compression
@@ -179,6 +198,10 @@ gzip_types text/plain text/css application/javascript application/json image/svg
 **Lý do:** Nén file đã nén → tốn CPU, tăng TTFB, kết quả còn to hơn hoặc bằng.
 
 `gzip_vary on` → thêm `Vary: Accept-Encoding` để CDN/proxy cache đúng cả bản gzip lẫn plain.
+
+**Các câu lệnh test**
+  curl -I -H "Accept-Encoding: gzip" http://localhost:3000/ - Test gzip file
+  curl -I -H "Accept-Encoding: gzip" http://localhost:3000/logo.png - Test không nén file đã nén (vd .png)
 
 ---
 
@@ -202,6 +225,13 @@ nginx/
 - `limit_req_status 429` — trả 429 Too Many Requests (default là 503 — sai semantic)
 - `open_file_cache max=1000` — cache file descriptor, giảm syscall khi serve static
 
+**Các câu lệnh test**
+  curl -I http://localhost:3000/ - check xem có hiện ver của nginx ko
+  curl -I http://localhost:3000/static/ - check ko lộ list file
+  curl -X DELETE http://localhost:3000/
+  for i in {1..50}; do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/; done - spam request để check test rate limit 
+  docker exec -it <> sh && cat /etc/nginx/nginx.conf - Test open_file_cache
+  docker exec -it <> nginx -T | grep worker - Test Worker tuning
 ---
 
 ## 8. SPA Routing Edge Cases
@@ -226,6 +256,11 @@ location ~* \.(js|css|png|...)$ {
 
 **`^~` prefix** trên `/static/` đảm bảo block này được chọn trước bất kỳ regex nào khác.
 
+**Các câu lệnh test**
+  curl -I http://localhost:3000/admin expect 200
+  curl -I http://localhost:3000/admin/ expect 200
+  curl -I http://localhost:3000/admin/settings expect 200
+  curl -I http://localhost:3000/random.txt expect 404 not found
 ---
 
 ## 9. Debug Scenario
@@ -282,6 +317,12 @@ Dùng `no-store` khi response chứa dữ liệu nhạy cảm (token, thông tin
  └─ NGINX_*     → docker-compose environment → container runtime → entrypoint.sh → nginx config
 ```
 File `.env` không bao giờ vào image. `REACT_APP_*` chỉ truyền giá trị qua build args. `NGINX_*` chỉ tồn tại trong process environment của container.
+
+**Các câu lệnh test**
+  exec vào => which apk / apt / yum / dnf / npm / node - expect ko hiện ra 
+  curl -I http://localhost:3000/.env - test xem có hiện file .env ra ko
+  curl -I http://localhost:3000/.git/config - expect 404
+  curl -I http://localhost:3000/package.json - expect 404
 
 ---
 
@@ -392,18 +433,27 @@ RUN chown nginx:nginx /etc/nginx/conf.d;  # nginx user có quyền ghi
 
 ### Env vars được hỗ trợ
 
-| Env var | Default | Ý nghĩa |
+<!-- | Env var | Default | Ý nghĩa |
 |---|---|---|
 | `NGINX_SERVER_NAME` | `_` | Domain / hostname |
 | `NGINX_RATE_LIMIT_APP` | `10r/s` | Rate limit SPA routes |
 | `NGINX_RATE_LIMIT_STATIC` | `100r/s` | Rate limit `/static/` |
 | `NGINX_RATE_BURST_APP` | `20` | Burst size app routes |
 | `NGINX_RATE_BURST_STATIC` | `200` | Burst size static |
-| `NGINX_CLIENT_MAX_BODY_SIZE` | `1m` | Max request body |
+| `NGINX_CLIENT_MAX_BODY_SIZE` | `1m` | Max request body | -->
+
+| Env Variable                | Default | Description                     |
+|-----------------------------|---------|---------------------------------|
+| `NGINX_SERVER_NAME`         | `_`     | Domain / hostname               |
+| `NGINX_RATE_LIMIT_APP`      | `10r/s` | Rate limit for SPA routes       |
+| `NGINX_RATE_LIMIT_STATIC`   | `100r/s`| Rate limit for `/static/`       |
+| `NGINX_RATE_BURST_APP`      | `20`    | Burst size for SPA routes       |
+| `NGINX_RATE_BURST_STATIC`   | `200`   | Burst size for static assets    |
+| `NGINX_CLIENT_MAX_BODY_SIZE`| `1m`    | Maximum request body size       |
 
 ### Cách dùng
 
-**Với docker-compose (recommended)** — sửa `.env`, restart container, không cần build lại:
+**Với docker-compose** — sửa `.env`, restart container, không cần build lại:
 
 ```bash
 # .env
@@ -433,6 +483,9 @@ docker run \
 
 1. Thêm `${NGINX_NEW_VAR}` vào `nginx/templates/app.conf.template`
 2. Thêm default + thêm vào list envsubst trong `nginx/docker-entrypoint.sh`
+
+**Các câu lệnh test**
+  exec vào container rồi cat /etc/nginx/conf.d/app.conf sẽ thấy hiển thị các giá trị được truyền vào => chứng tỏ dynamic config đã hoạt động
 
 ---
 
