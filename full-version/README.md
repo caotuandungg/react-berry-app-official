@@ -50,8 +50,9 @@ Stage 3 — runtime  : COPY /app/build → nginx (không có Node, npm, source c
 
 **Kích thước image:** Runtime chỉ chứa nginx + static files → < 40MB.
 **Các câu lệnh test**
+```bash
   docker exec -it <> sh , check which node/npm/ ls -la
-
+```
 ---
 
 ## 2. Non-root Container
@@ -75,8 +76,9 @@ tmpfs:
 `/etc/nginx/conf.d` cần tmpfs riêng vì `read_only: true` block write — entrypoint cần ghi `app.conf` vào đây lúc startup. Không có tmpfs này → "Read-only file system" error.
 
 **Các câu lệnh test**
+```bash
   docker exec -it <> sh , check id
-
+```
 ---
 
 ## 3. Healthcheck
@@ -157,11 +159,13 @@ location = /index.html {
 ```
 
 **Các câu lệnh test**
+```bash
   curl -s http://localhost:3000 | grep static/js  
   curl -I -H "Accept-Encoding: gzip" \
   http://localhost:3000/static/js/<>
 
   curl -I http://localhost:3000/favicon.svg - Test non-hashed file (ví dụ favicon)
+```
 ---
 
 ## 5. Conditional Request (ETag / 304)
@@ -176,11 +180,13 @@ location = /index.html {
 Không disable ETag để "đơn giản hóa" — đó là bỏ đi một cơ chế tiết kiệm bandwidth quan trọng.
 
 **Các câu lệnh test**
+```bash
   curl -I http://localhost:8080/ - Lấy giá trị Etag và copy nó paste vào lệnh dưới
   curl -I http://localhost:3000/ \    - Test If-None-Match
   -H 'If-None-Match: "etag_value"'
   curl -I http://localhost:8080/static/js/main.xxx.js \   - Test static asset 304
   -H 'If-None-Match: "etag_value"'
+```
 ---
 
 ## 6. Gzip Compression
@@ -202,9 +208,10 @@ gzip_types text/plain text/css application/javascript application/json image/svg
 `gzip_vary on` → thêm `Vary: Accept-Encoding` để CDN/proxy cache đúng cả bản gzip lẫn plain.
 
 **Các câu lệnh test**
+```bash
   curl -I -H "Accept-Encoding: gzip" http://localhost:3000/ - Test gzip file
   curl -I -H "Accept-Encoding: gzip" http://localhost:3000/logo.png - Test không nén file đã nén (vd .png)
-
+```
 ---
 
 ## 7. Nginx Config Structure
@@ -228,12 +235,14 @@ nginx/
 - `open_file_cache max=1000` — cache file descriptor, giảm syscall khi serve static
 
 **Các câu lệnh test**
+```bash
   curl -I http://localhost:3000/ - check xem có hiện ver của nginx ko
   curl -I http://localhost:3000/static/ - check ko lộ list file
   curl -X DELETE http://localhost:3000/
   for i in {1..50}; do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/; done - spam request để check test rate limit 
   docker exec -it <> sh && cat /etc/nginx/nginx.conf - Test open_file_cache
   docker exec -it <> nginx -T | grep worker - Test Worker tuning
+```
 ---
 
 ## 8. SPA Routing Edge Cases
@@ -259,10 +268,12 @@ location ~* \.(js|css|png|...)$ {
 **`^~` prefix** trên `/static/` đảm bảo block này được chọn trước bất kỳ regex nào khác.
 
 **Các câu lệnh test**
+```bash
   curl -I http://localhost:3000/admin expect 200
   curl -I http://localhost:3000/admin/ expect 200
   curl -I http://localhost:3000/admin/settings expect 200
   curl -I http://localhost:3000/random.txt expect 404 not found
+```
 ---
 
 ## 9. Debug Scenario
@@ -321,11 +332,12 @@ Dùng `no-store` khi response chứa dữ liệu nhạy cảm (token, thông tin
 File `.env` không bao giờ vào image. `REACT_APP_*` chỉ truyền giá trị qua build args. `NGINX_*` chỉ tồn tại trong process environment của container.
 
 **Các câu lệnh test**
+```bash
   exec vào => which apk / apt / yum / dnf / npm / node - expect ko hiện ra 
   curl -I http://localhost:3000/.env - test xem có hiện file .env ra ko
   curl -I http://localhost:3000/.git/config - expect 404
   curl -I http://localhost:3000/package.json - expect 404
-
+```
 ---
 
 ## 11. Stress Simulation — 10k Concurrent Users
@@ -487,8 +499,9 @@ docker run \
 2. Thêm default + thêm vào list envsubst trong `nginx/docker-entrypoint.sh`
 
 **Các câu lệnh test**
+```bash
   exec vào container rồi cat /etc/nginx/conf.d/app.conf sẽ thấy hiển thị các giá trị được truyền vào => chứng tỏ dynamic config đã hoạt động
-
+```
 ---
 
 ## Cấu trúc Files
