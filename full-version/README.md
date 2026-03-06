@@ -107,9 +107,11 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 BusyBox wget (Alpine) resolve `localhost` → `::1` (IPv6 loopback), nhưng nginx `listen 8080;` chỉ bind `0.0.0.0:8080` (IPv4) → "Connection refused". `127.0.0.1` bypass DNS resolution, connect thẳng IPv4.
 
 **Các câu lệnh test**
+```bash
   docker inspect react-prod | grep -i health -A 10 - Check Docker Healthcheck
   curl -i http://localhost:3000/health - Test endpoint health
   docker ps
+```
 ---
 
 ## 4. Cache Strategy
