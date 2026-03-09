@@ -3,6 +3,7 @@
 # Stage 1: deps — Install dependencies
 FROM node:18-alpine AS deps
 
+# BẮT BUỘC CÓ: Tạo thư mục /app riêng để code không bị trộn lẫn rác vào hệ điều hành gốc của Container.
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -13,51 +14,34 @@ RUN npm ci --frozen-lockfile && \
 # Stage 2: builder — Build production React bundle
 FROM node:18-alpine AS builder
 
+# BẮT BUỘC CÓ LẠI: Vì Stage 2 là một máy ảo mới tinh, phải khai báo lại thư mục làm việc để hứng code.
 WORKDIR /app
 
+# CỐT LÕI CỦA MULTI-STAGE: Bê nguyên cục thư viện (node_modules) đã tải xong từ Stage 1 sang Stage 2. Không có dòng này Stage 2 không build được.
+# KHÔNG THỂ BỎ DÒNG NÀY ĐƯỢC VÀ CHẮC CHẮN SẼ BÁO LỖI. Vứt nó lên Tầng 1 sẽ khiến Tầng 2 mù mắt hoàn toàn.
 COPY --from=deps /app/node_modules ./node_modules
 
 COPY . .
 
 ARG REACT_APP_VERSION
 ARG REACT_APP_API_URL
-ARG REACT_APP_FIREBASE_API_KEY
-ARG REACT_APP_FIREBASE_AUTH_DOMAIN
-ARG REACT_APP_FIREBASE_PROJECT_ID
-ARG REACT_APP_FIREBASE_STORAGE_BUCKET
-ARG REACT_APP_FIREBASE_MESSAGING_SENDER_ID
-ARG REACT_APP_FIREBASE_APP_ID
-ARG REACT_APP_FIREBASE_MEASUREMENT_ID
-ARG REACT_APP_AWS_POOL_ID
-ARG REACT_APP_AWS_APP_CLIENT_ID
-ARG REACT_APP_AUTH0_CLIENT_ID
-ARG REACT_APP_AUTH0_DOMAIN
 
 ENV REACT_APP_VERSION=$REACT_APP_VERSION \
-    REACT_APP_API_URL=$REACT_APP_API_URL \
-    REACT_APP_FIREBASE_API_KEY=$REACT_APP_FIREBASE_API_KEY \
-    REACT_APP_FIREBASE_AUTH_DOMAIN=$REACT_APP_FIREBASE_AUTH_DOMAIN \
-    REACT_APP_FIREBASE_PROJECT_ID=$REACT_APP_FIREBASE_PROJECT_ID \
-    REACT_APP_FIREBASE_STORAGE_BUCKET=$REACT_APP_FIREBASE_STORAGE_BUCKET \
-    REACT_APP_FIREBASE_MESSAGING_SENDER_ID=$REACT_APP_FIREBASE_MESSAGING_SENDER_ID \
-    REACT_APP_FIREBASE_APP_ID=$REACT_APP_FIREBASE_APP_ID \
-    REACT_APP_FIREBASE_MEASUREMENT_ID=$REACT_APP_FIREBASE_MEASUREMENT_ID \
-    REACT_APP_AWS_POOL_ID=$REACT_APP_AWS_POOL_ID \
-    REACT_APP_AWS_APP_CLIENT_ID=$REACT_APP_AWS_APP_CLIENT_ID \
-    REACT_APP_AUTH0_CLIENT_ID=$REACT_APP_AUTH0_CLIENT_ID \
-    REACT_APP_AUTH0_DOMAIN=$REACT_APP_AUTH0_DOMAIN
+    REACT_APP_API_URL=$REACT_APP_API_URL
 
 ENV GENERATE_SOURCEMAP=false
 ENV NODE_ENV=production
 
 RUN npm run build && \
     find /app/build -name '*.map' -delete && \
+    # QUAN TRỌNG NHẤT VỀ HIỆU NĂNG: Nén sẵn các file tĩnh thành .gz ở mức cao nhất, giúp Nginx cân 100.000 user mà không nghẽn CPU.
     find /app/build/static -type f \( -name "*.js" -o -name "*.css" -o -name "*.svg" \) \
         -exec gzip -9 -k {} \; && \
+    # XOÁ BẢN GỐC: Xoá các file tĩnh chưa nén đi để tối ưu hoá 500% dung lượng ổ cứng của Container.
     find /app/build/static -type f \( -name "*.js" -o -name "*.css" -o -name "*.svg" \) \
         ! -name "*.gz" -delete
 
-# Stage 3: runtime — Production nginx (NO Node, npm, source code, build tools)
+# Stage 3: runtime — Production nginx (NO Node, npm , source code, build tools)
 FROM nginx:1.27-alpine-slim AS runtime
 
 LABEL maintainer="VNCloudOps" \

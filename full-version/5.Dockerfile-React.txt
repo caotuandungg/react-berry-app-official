@@ -1,0 +1,89 @@
+﻿Productionize React App hướng Containerization
+Docker + Nginx
+Bối cảnh:
+Dự án được viết bằng React (TypeScript) 
+Git: github.com/VNCloudOps/react-theme-berry-v3.6.0
+Nhiệm vụ: đóng gói và triển khai ứng dụng dưới dạng container production-grade, đảm bảo:
+- Hiệu năng cao
+- Caching chính xác theo HTTP spec
+- Có khả năng scale
+- Không lộ thông tin nhạy cảm
+- Có khả năng quan sát (basic observability)
+1. Multi-stage build với tối ưu layer cache:
+Yêu cầu:
+- Build dependency cache phải tách biệt khỏi source layer.
+- Rebuild khi thay đổi source không được trigger reinstall dependency nếu package.json không đổi.
+Runtime image không chứa:
+- Node
+- Npm
+- Source code
+- Build toolchain
+- Image size phải < 40MB (không tính base image layer đã có sẵn local)
+2. Non-root container:
+Container phải chạy dưới non-root user
+Không được disable security chỉ để chạy được
+3. Healthcheck:
+Phải có:
+- Docker HEALTHCHECK
+- Endpoint kiểm tra sống/chết rõ ràng
+- Không được dùng index.html làm health endpoint
+4. Cache Strategy theo loại file:
+Phải xử lý riêng biệt:
+A. Hashed static assets
+VD: main.3f1a9c.js
+Yêu cầu:
+Cache 1 năm
+immutable
+Không revalidate
+B. Non-hashed assets (nếu tồn tại)
+Cache tối đa 5 phút
+Có revalidation
+C. index.html
+Không cache
+Phải có ETag hoặc Last-Modified
+5. Conditional Request Support:
+Ứng viên phải đảm bảo:
+If-None-Match hoạt động
+304 được trả về đúng chuẩn
+Không được disable ETag chỉ vì lười cấu hình
+6. Gzip / Compression:
+Chỉ nén loại MIME phù hợp
+Không nén file đã nén
+Không làm tăng TTFB quá mức
+7. Nginx Deep Config:
+Yêu cầu:
+- Tách config file rõ ràng
+- Không sửa file default trực tiếp
+- Không để directory listing
+- Không lộ server version
+- Giới hạn method nếu cần
+- Có rate limit
+- Có worker tuning
+- Có open_file_cache
+8. SPA Routing Edge Cases:
+Phải xử lý đúng:
+- Route /admin
+- Route /admin/
+- Route /admin/settings
+- 404 thật sự cho file không tồn tại (VD /random.txt)
+- Không được fallback mọi thứ về index một cách mù quáng.
+9. Debug Scenario (Bắt buộc giải thích):
+Trả lời bằng văn bản:
+- Vì sao static asset nên immutable?
+- Tại sao không nên cache index.html?
+- Điều gì xảy ra nếu cache index.html 1 năm?
+- Khi nào cần no-store thay vì no-cache?
+- Nếu user báo không load version mới sau deploy, bạn debug thế nào?
+- Phần này bắt buộc reasoning, không chỉ config.
+10. Image Security:
+Không có package manager trong runtime
+Không có shell nếu không cần thiết
+Không lộ file .env
+Không lộ source map (trừ khi cấu hình riêng)
+11. Stress Simulation:
+Yêu cầu phải mô tả:
+- Nếu có 10k concurrent user
+- Nginx bottleneck ở đâu?
+- Docker limit nên cấu hình gì?
+- Cần scale thế nào?
+- Không cần triển khai Kubernetes, nhưng phải giải thích được hướng scale.
