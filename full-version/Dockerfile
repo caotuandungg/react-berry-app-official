@@ -3,7 +3,6 @@
 # Stage 1: deps — Install dependencies
 FROM node:18-alpine AS deps
 
-# BẮT BUỘC CÓ: Tạo thư mục /app riêng để code không bị trộn lẫn rác vào hệ điều hành gốc của Container.
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -14,30 +13,29 @@ RUN npm ci --frozen-lockfile && \
 # Stage 2: builder — Build production React bundle
 FROM node:18-alpine AS builder
 
-# BẮT BUỘC CÓ LẠI: Vì Stage 2 là một máy ảo mới tinh, phải khai báo lại thư mục làm việc để hứng code.
 WORKDIR /app
 
-# CỐT LÕI CỦA MULTI-STAGE: Bê nguyên cục thư viện (node_modules) đã tải xong từ Stage 1 sang Stage 2. Không có dòng này Stage 2 không build được.
-# KHÔNG THỂ BỎ DÒNG NÀY ĐƯỢC VÀ CHẮC CHẮN SẼ BÁO LỖI. Vứt nó lên Tầng 1 sẽ khiến Tầng 2 mù mắt hoàn toàn.
 COPY --from=deps /app/node_modules ./node_modules
 
-COPY . .
+# Chỉ copy đúng những thứ cần để build React, tránh đưa file rác vào Container
+COPY package.json ./
+COPY public/ ./public/
+COPY src/ ./src/
+COPY config-overrides.js tsconfig.json ./
 
 ARG REACT_APP_VERSION
 ARG REACT_APP_API_URL
 
+# Gộp 1 lệnh ENV duy nhất để giảm số Layer của Image
 ENV REACT_APP_VERSION=$REACT_APP_VERSION \
-    REACT_APP_API_URL=$REACT_APP_API_URL
-
-ENV GENERATE_SOURCEMAP=false
-ENV NODE_ENV=production
+    REACT_APP_API_URL=$REACT_APP_API_URL \
+    GENERATE_SOURCEMAP=false \
+    NODE_ENV=production
 
 RUN npm run build && \
     find /app/build -name '*.map' -delete && \
-    # QUAN TRỌNG NHẤT VỀ HIỆU NĂNG: Nén sẵn các file tĩnh thành .gz ở mức cao nhất, giúp Nginx cân 100.000 user mà không nghẽn CPU.
     find /app/build/static -type f \( -name "*.js" -o -name "*.css" -o -name "*.svg" \) \
         -exec gzip -9 -k {} \; && \
-    # XOÁ BẢN GỐC: Xoá các file tĩnh chưa nén đi để tối ưu hoá 500% dung lượng ổ cứng của Container.
     find /app/build/static -type f \( -name "*.js" -o -name "*.css" -o -name "*.svg" \) \
         ! -name "*.gz" -delete
 
