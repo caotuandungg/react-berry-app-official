@@ -54,7 +54,6 @@ server {
     location ^~ /static/ {
         limit_req zone=static_limit burst=${NGINX_RATE_BURST_STATIC} nodelay;
 
-        expires 1y;
         add_header Cache-Control "public, max-age=31536000, immutable";
         add_header X-Content-Type-Options "nosniff" always;
 
@@ -66,31 +65,23 @@ server {
 
     # 4B. NON-HASHED ASSETS (favicon, manifest, logos)
     location ~* ^/(favicon\.(ico|svg)|manifest\.json|logo.*\.(png|svg|ico))$ {
-        expires 5m;
         add_header Cache-Control "public, max-age=300, must-revalidate";
         add_header X-Content-Type-Options "nosniff" always;
-        etag on;
     }
 
     # 4C. INDEX.HTML — Never cache
     location = /index.html {
         limit_req zone=app_limit burst=${NGINX_RATE_BURST_APP} nodelay;
 
-        expires -1;
         add_header Cache-Control "no-cache, no-store, must-revalidate" always;
-        add_header Pragma "no-cache" always;
-
-        etag on;
     }
 
     # 5. STATIC FILE REQUESTS (with extensions)
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|webp|woff|woff2|ttf|eot|otf|txt|xml|json|webmanifest|pdf|zip|gz|mp4|webm|ogg|mp3|wav)$ {
         try_files $uri =404;
 
-        expires 5m;
         add_header Cache-Control "public, max-age=300, must-revalidate";
         add_header X-Content-Type-Options "nosniff" always;
-        etag on;
 
         access_log off;
     }

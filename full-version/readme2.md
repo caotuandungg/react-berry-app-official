@@ -84,7 +84,7 @@ MSYS_NO_PATHCONV=1 docker exec berry-react-app find /usr/share/nginx/html/static
 ```
 Giả sử file trả về ở trên là `main.abcd123.js`, ta test HTTP Header của file này:
 ```bash
-curl -I http://localhost:8080/static/js/main.abcd123.js
+curl -I http://localhost:3000/static/js/main.abcd123.js
 ```
 *Tác dụng:* Lệnh đọc Header (`-I`) nhằm xác định xem chỉ thị đánh Cache trọn đời đã được Nginx gửi trả kèm cái file đó chưa.
 *Kỳ vọng:* 
